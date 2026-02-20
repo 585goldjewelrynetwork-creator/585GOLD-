@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отчёт по продажам</title>
+    <!-- Подключение Chart.js через CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        /* Блок KPI */
+        .kpi-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .kpi-card {
+            background: white;
+            border-left: 5px solid #3498db;
+            border-radius: 8px;
+            padding: 20px;
+            flex: 1;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            min-width: 250px;
+        }
+
+        .kpi-title {
+            font-size: 14px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-top: 10px;
+        }
+
+        /* График */
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            height: 400px;
+        }
+
+        /* Таблица */
+        .table-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .money {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Отчёт по продажам</h1>
+
+    <!-- 2. Блок с ключевыми показателями -->
+    <div class="kpi-container">
+        <div class="kpi-card">
+            <div class="kpi-title">Общая выручка</div>
+            <div class="kpi-value" id="totalRevenue">0 ₽</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Количество заказов (шт.)</div>
+            <div class="kpi-value" id="totalOrders">0</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Средний чек (взвешенный)</div>
+            <div class="kpi-value" id="avgCheck">0 ₽</div>
+        </div>
+    </div>
+
+    <!-- 3. График продаж -->
+    <div class="chart-container">
+        <canvas id="salesChart"></canvas>
+    </div>
+
+    <!-- 4. Таблица -->
+    <div class="table-container">
+        <h2>Детализация по категориям (Топ позиций)</h2>
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th>Категория товара</th>
+                    <th>Всего продано (шт.)</th>
+                    <th>Средний чек (руб.)</th>
+                    <th>Выручка (руб.)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Данные будут вставлены через JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Исходные данные из Excel
+    const rawData = [
+        { name: "Кольца золотые", sales: [145, 178, 156, 145, 178, 156, 145, 178, 156, 154, 164, 350], price: 12500 },
+        { name: "Серьги золотые", sales: [98, 112, 105, 98, 112, 105, 98, 112, 105, 100, 164, 150], price: 8300 },
+        { name: "Цепи и браслеты", sales: [67, 112, 86, 67, 112, 86, 67, 112, 86, 86, 164, 200], price: 15700 },
+        { name: "Кольца с бриллиантами", sales: [34, 28, 52, 34, 28, 52, 34, 28, 52, 34, 28, 80], price: 45000 },
+        { name: "Обручальные кольца", sales: [56, 89, 124, 56, 89, 124, 56, 89, 124, 154, 164, 320], price: 18500 },
+        { name: "Детские украшения", sales: [23, 31, 28, 23, 31, 28, 23, 31, 28, 154, 189, 320], price: 4200 },
+        { name: "Серебряные изделия", sales: [189, 201, 176, 189, 201, 176, 189, 201, 176, 154, 176, 320], price: 2800 },
+        { name: "Подвески и кулоны", sales: [78, 85, 91, 78, 85, 91, 78, 85, 91, 154, 85, 350], price: 6900 }
+    ];
+
+    const months = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+
+    // 1. Расчет метрик
+    let totalRevenue = 0;
+    let totalUnits = 0;
+    let monthlySales = new Array(12).fill(0);
+    let categoryStats = [];
+
+    rawData.forEach(item => {
+        let categoryUnits = 0;
+        item.sales.forEach((count, index) => {
+            monthlySales[index] += count;
+            categoryUnits += count;
+        });
+
+        let categoryRevenue = categoryUnits * item.price;
+        totalRevenue += categoryRevenue;
+        totalUnits += categoryUnits;
+
+        categoryStats.push({
+            name: item.name,
+            units: categoryUnits,
+            price: item.price,
+            revenue: categoryRevenue
+        });
+    });
+
+    // Сортировка по выручке для таблицы
+    categoryStats.sort((a, b) => b.revenue - a.revenue);
+
+    // 2. Вывод KPI
+    const weightedAvgCheck = totalUnits > 0 ? (totalRevenue / totalUnits) : 0;
+
+    document.getElementById('totalRevenue').innerText = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(totalRevenue);
+    document.getElementById('totalOrders').innerText = new Intl.NumberFormat('ru-RU').format(totalUnits);
+    document.getElementById('avgCheck').innerText = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(weightedAvgCheck);
+
+    // 3. Построение графика
+    const ctx = document.getElementById('salesChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [{
+                label: 'Продажи (шт.)',
+                data: monthlySales,
+                borderColor: '#3498db',
+                backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                borderWidth: 3,
+                tension: 0.4, // Плавность линий
+                fill: true,
+                pointRadius: 5,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#3498db'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Динамика продаж по месяцам (все категории)'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: '#f0f0f0'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+
+    // 4. Заполнение таблицы
+    const tableBody = document.querySelector('#dataTable tbody');
+    categoryStats.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${item.name}</td>
+            <td>${item.units}</td>
+            <td>${new Intl.NumberFormat('ru-RU').format(item.price)}</td>
+            <td class="money">${new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(item.revenue)}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+
+</script>
+
+</body>
+</html>
